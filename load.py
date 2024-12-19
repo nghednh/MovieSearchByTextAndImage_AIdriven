@@ -1,18 +1,3 @@
-import pandas as pd
-
-# # Load the full file
-# full_df = pd.read_csv("joined_output.csv", dtype={'imdb_id': str})  # Ensure 'imdb_id' is string
-
-# # Ensure the 'text' column is treated as a string
-# full_df['text'] = full_df['text'].astype(str)
-
-# # Select only specific columns
-# selected_columns = ["imdb_id", "title","overview"]
-# minimized_df = full_df[selected_columns]
-
-# minimized_df['overview'] = minimized_df['title'].astype(str) + " " + minimized_df['overview'].astype(str)
-# minimized_df = minimized_df.drop(columns=['title'])
-# minimized_df.to_csv("overview.csv", index=False)
 import sqlite3
 import pandas as pd
 
@@ -47,8 +32,8 @@ def search(query):
     # Get the indices of the most similar rows (documents)
     similar_indices = similarities.argsort()[0][::-1]  # Sorted in descending order
     
-    # Get the ids of the top N results (for example, top 5)
-    top_n = 5
+    # Get the ids of the top N results (for example, top 1)
+    top_n = 1
     top_ids = df_search.iloc[similar_indices[:top_n]]['imdb_id'].tolist()
     
     return top_ids
