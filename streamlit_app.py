@@ -151,7 +151,7 @@ top_k = st.slider("Number of results to display:", min_value=1, max_value=10, va
 # Search button
 if st.button("Search"):
     if user_query.strip():
-        top_ids = search(user_query, top_k=top_k)
+        top_ids = search_subtitle(user_query, top_k=top_k)
         movie_details = get_movie_details(top_ids)
         movie_names = [get_movie_name_by_id(movie_id) for movie_id in top_ids]
 
