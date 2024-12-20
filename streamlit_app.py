@@ -12,7 +12,7 @@ if 'theme' not in st.session_state:
 
 # Load the search data
 df_search = pd.read_csv('overview.csv')
-
+df_subtitle = pd.read_csv('subtitle.csv')
 def preprocess_overview(overview):
     parts = overview.split("/", 1) 
     title = parts[0].strip()  
@@ -26,10 +26,10 @@ df_search['weighted_overview'] = df_search['overview'].apply(preprocess_overview
 # Create the TF-IDF matrix with the adjusted 'overview'
 vectorizer = TfidfVectorizer(stop_words='english')
 tfidf_matrix = vectorizer.fit_transform(df_search['weighted_overview'])
+# Create the TF-IDF matrix for text
+tfidf_matrix_subtitle = vectorizer.fit_transform(df_subtitle['text'])
 
-# Initialize TF-IDF Vectorizer
-vectorizer = TfidfVectorizer(stop_words='english')
-tfidf_matrix = vectorizer.fit_transform(df_search['overview'])
+
 
 # Connect to the database
 conn = sqlite3.connect('movies_meta.db')
@@ -49,6 +49,14 @@ def query_db_by_id(imdb_id):
 def search(query, top_k=5):
     query_tfidf = vectorizer.transform([query])
     similarities = cosine_similarity(query_tfidf, tfidf_matrix)
+    similar_indices = similarities.argsort()[0][::-1]
+    top_ids = df_search.iloc[similar_indices[:top_k]]['imdb_id'].tolist()
+    return top_ids
+
+# Function to search by subtitle
+def search_subtitle(query, top_k=5):
+    query_tfidf = vectorizer.transform([query])
+    similarities = cosine_similarity(query_tfidf, tfidf_matrix_subtitle)
     similar_indices = similarities.argsort()[0][::-1]
     top_ids = df_search.iloc[similar_indices[:top_k]]['imdb_id'].tolist()
     return top_ids
