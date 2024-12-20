@@ -106,20 +106,27 @@ def search_subtitle(query, top_k=5):
 
 # Function for boolean search
 def boolean_search(query, top_k=5):
-    
-    terms = re.split(r'\s+(AND|OR|NOT)\s+', query)
-    current_result = set(range(len(df_search)))  # Start with all document indices
-    
+    # Preprocessing: Split query into terms and operators
+    terms = re.split(r'\s+(AND|OR|NOT)\s+', query.strip())
+    terms = [t.strip() for t in terms]  # Remove extra spaces
+
+    # Initialize the result set
+    current_result = set(range(len(df_search)))  # All document indices initially
+    similarities = {}  # Dictionary to store term similarities
+
     for i in range(0, len(terms), 2):
         term = terms[i]
         operator = terms[i - 1] if i > 0 else "AND"
 
-        
+        # Compute similarities for the term
         term_tfidf = vectorizer_search.transform([term])
-        similarities = cosine_similarity(term_tfidf, tfidf_matrix).flatten()
-        matching_indices = set(similarities.argsort()[::-1][:top_k])
-        
-       
+        term_similarities = cosine_similarity(term_tfidf, tfidf_matrix).flatten()
+
+        # Cache similarities
+        similarities[term] = term_similarities
+        matching_indices = set(term_similarities.argsort()[::-1][:top_k])
+
+        # Apply Boolean operators
         if operator == "AND":
             current_result &= matching_indices
         elif operator == "OR":
@@ -127,8 +134,14 @@ def boolean_search(query, top_k=5):
         elif operator == "NOT":
             current_result -= matching_indices
 
+    # Filter and sort final results by similarity scores
+    final_indices = sorted(
+        current_result,
+        key=lambda idx: max(similarities[term][idx] for term in similarities),
+        reverse=True
+    )
+
     # Retrieve top results
-    final_indices = sorted(current_result, key=lambda idx: -similarities[idx])
     top_ids = df_search.iloc[final_indices[:top_k]]['imdb_id'].tolist()
     return top_ids
 
@@ -162,7 +175,6 @@ def get_movie_info_by_name(movie_name):
         movie_url = f"{BASE_URL}/movie/{movie_id}?api_key={API_KEY}&language=en-US"
         movie_response = requests.get(movie_url)
         movie_data = movie_response.json()
-
         if movie_response.status_code == 200:
             poster_path = movie_data.get('poster_path')
             release_date = movie_data.get('release_date', 'Not available')
@@ -178,7 +190,6 @@ def get_movie_info_by_name(movie_name):
                 'genres': ', '.join(genres) if genres else 'Not available',
                 'overview': overview
             }
-
     return None
 
 
