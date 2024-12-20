@@ -4,6 +4,7 @@ import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import requests
+import re
 
 # Initialize session state for theme if not already set
 if 'theme' not in st.session_state:
@@ -11,6 +12,20 @@ if 'theme' not in st.session_state:
 
 # Load the search data
 df_search = pd.read_csv('overview.csv')
+
+def preprocess_overview(overview):
+    parts = overview.split("/", 1) 
+    title = parts[0].strip()  
+    description = parts[1].strip() if len(parts) > 1 else ""  
+    weighted_title = (title + " ") * 10  
+    return weighted_title + description  
+
+# Apply preprocessing to the 'overview' column
+df_search['weighted_overview'] = df_search['overview'].apply(preprocess_overview)
+
+# Create the TF-IDF matrix with the adjusted 'overview'
+vectorizer = TfidfVectorizer(stop_words='english')
+tfidf_matrix = vectorizer.fit_transform(df_search['weighted_overview'])
 
 # Initialize TF-IDF Vectorizer
 vectorizer = TfidfVectorizer(stop_words='english')
@@ -36,6 +51,34 @@ def search(query, top_k=5):
     similarities = cosine_similarity(query_tfidf, tfidf_matrix)
     similar_indices = similarities.argsort()[0][::-1]
     top_ids = df_search.iloc[similar_indices[:top_k]]['imdb_id'].tolist()
+    return top_ids
+
+# Function for boolean search
+def boolean_search(query, top_k=5):
+    
+    terms = re.split(r'\s+(AND|OR|NOT)\s+', query)
+    current_result = set(range(len(df_search)))  # Start with all document indices
+    
+    for i in range(0, len(terms), 2):
+        term = terms[i]
+        operator = terms[i - 1] if i > 0 else "AND"
+
+        
+        term_tfidf = vectorizer.transform([term])
+        similarities = cosine_similarity(term_tfidf, tfidf_matrix).flatten()
+        matching_indices = set(similarities.argsort()[::-1][:top_k])
+        
+       
+        if operator == "AND":
+            current_result &= matching_indices
+        elif operator == "OR":
+            current_result |= matching_indices
+        elif operator == "NOT":
+            current_result -= matching_indices
+
+    # Retrieve top results
+    final_indices = sorted(current_result, key=lambda idx: -similarities[idx])
+    top_ids = df_search.iloc[final_indices[:top_k]]['imdb_id'].tolist()
     return top_ids
 
 
