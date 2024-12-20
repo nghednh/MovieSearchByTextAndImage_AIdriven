@@ -12,6 +12,20 @@ if 'theme' not in st.session_state:
 # Load the search data
 df_search = pd.read_csv('overview.csv')
 
+def preprocess_overview(overview):
+    parts = overview.split("/", 1) 
+    title = parts[0].strip()  
+    description = parts[1].strip() if len(parts) > 1 else ""  
+    weighted_title = (title + " ") * 10  
+    return weighted_title + description  
+
+# Apply preprocessing to the 'overview' column
+df_search['weighted_overview'] = df_search['overview'].apply(preprocess_overview)
+
+# Create the TF-IDF matrix with the adjusted 'overview'
+vectorizer = TfidfVectorizer(stop_words='english')
+tfidf_matrix = vectorizer.fit_transform(df_search['weighted_overview'])
+
 # Initialize TF-IDF Vectorizer
 vectorizer = TfidfVectorizer(stop_words='english')
 tfidf_matrix = vectorizer.fit_transform(df_search['overview'])
