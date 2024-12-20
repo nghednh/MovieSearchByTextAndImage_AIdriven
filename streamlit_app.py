@@ -5,29 +5,72 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import requests
 import re
-
+import unicodedata
 # Initialize session state for theme if not already set
 if 'theme' not in st.session_state:
     st.session_state['theme'] = 'dark'  # Default to dark mode
+conn1 = sqlite3.connect('overview.db')
+cursor1 = conn1.cursor()
+
+conn2 = sqlite3.connect('subtitle.db')
+cursor2 = conn2.cursor()
 
 # Load the search data
-df_search = pd.read_csv('overview.csv')
-df_subtitle = pd.read_csv('subtitle.csv')
+df_search = pd.read_sql_query("SELECT imdb_id, overview FROM overview", conn1)
+df_subtitle = pd.read_sql_query("SELECT imdb_id, text FROM subtitle", conn2)
+
+
+
+def normalize_text(text):
+    """
+    Normalize and clean the input text for better search performance.
+    This function:
+    - Converts text to lowercase
+    - Removes extra spaces
+    - Strips leading/trailing whitespace
+    - Normalizes Unicode characters (e.g., converts accented characters to non-accented)
+    - Removes non-alphanumeric characters (except spaces)
+    """
+    # Convert to lowercase
+    text = text.lower()
+
+    # Normalize unicode characters (remove accents)
+    text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('ASCII')
+
+    # Remove any non-alphanumeric characters except spaces
+    text = re.sub(r'[^a-z0-9\s/]', '', text)
+
+
+    # Remove extra spaces
+    text = re.sub(r'\s+', ' ', text).strip()
+
+    return text
+
 def preprocess_overview(overview):
-    parts = overview.split("/", 1) 
-    title = parts[0].strip()  
-    description = parts[1].strip() if len(parts) > 1 else ""  
-    weighted_title = (title + " ") * 10  
-    return weighted_title + description  
+    """
+    Preprocess the overview by increasing the weight of the title.
+    The title is repeated 10 times to make it more important than the description.
+    """
+    parts = overview.split("/", 1)  # Split at the first '/'
+    title = parts[0].strip()  # The part before '/'
+    description = parts[1].strip() if len(parts) > 1 else ""  # The part after '/'
 
-# Apply preprocessing to the 'overview' column
-df_search['weighted_overview'] = df_search['overview'].apply(preprocess_overview)
+    # Repeat the title 10 times to increase its weight
+    weighted_title = (title + " ") * 10  # Title gets 10 times more weight
 
-# Create the TF-IDF matrix with the adjusted 'overview'
-vectorizer = TfidfVectorizer(stop_words='english')
-tfidf_matrix = vectorizer.fit_transform(df_search['weighted_overview'])
-# Create the TF-IDF matrix for text
-tfidf_matrix_subtitle = vectorizer.fit_transform(df_subtitle['text'])
+    # Return the weighted title combined with the description
+    return weighted_title + description
+
+
+df_search['normalized_weighted_overview'] = df_search['overview'].apply(lambda x: preprocess_overview(normalize_text(x)))
+df_subtitle['normalized_text'] = df_subtitle['text'].apply(normalize_text)
+
+vectorizer_search = TfidfVectorizer(stop_words='english')
+tfidf_matrix = vectorizer_search.fit_transform(df_search['normalized_weighted_overview'])
+
+vectorizer_subtitle = TfidfVectorizer(stop_words='english')
+tfidf_matrix_subtitle = vectorizer_subtitle.fit_transform(df_subtitle['normalized_text'])
+
 
 
 
@@ -47,7 +90,7 @@ def query_db_by_id(imdb_id):
 
 # Function to search for top K matching movies
 def search(query, top_k=5):
-    query_tfidf = vectorizer.transform([query])
+    query_tfidf = vectorizer_search.transform([query])
     similarities = cosine_similarity(query_tfidf, tfidf_matrix)
     similar_indices = similarities.argsort()[0][::-1]
     top_ids = df_search.iloc[similar_indices[:top_k]]['imdb_id'].tolist()
@@ -55,7 +98,7 @@ def search(query, top_k=5):
 
 # Function to search by subtitle
 def search_subtitle(query, top_k=5):
-    query_tfidf = vectorizer.transform([query])
+    query_tfidf = vectorizer_subtitle.transform([query])
     similarities = cosine_similarity(query_tfidf, tfidf_matrix_subtitle)
     similar_indices = similarities.argsort()[0][::-1]
     top_ids = df_search.iloc[similar_indices[:top_k]]['imdb_id'].tolist()
@@ -72,7 +115,7 @@ def boolean_search(query, top_k=5):
         operator = terms[i - 1] if i > 0 else "AND"
 
         
-        term_tfidf = vectorizer.transform([term])
+        term_tfidf = vectorizer_search.transform([term])
         similarities = cosine_similarity(term_tfidf, tfidf_matrix).flatten()
         matching_indices = set(similarities.argsort()[::-1][:top_k])
         
