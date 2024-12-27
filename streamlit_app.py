@@ -108,15 +108,15 @@ def search_subtitle(query, top_k=5):
 def boolean_search(query, top_k=5):
     # Preprocessing: Split query into terms and operators
     terms = re.split(r'\s+(AND|OR|NOT)\s+', query.strip())
-    terms = [t.strip() for t in terms]  # Remove extra spaces
+    terms = [t.strip() for t in terms if t.strip()]  # Remove empty strings
 
-    # Initialize the result set
-    current_result = set(range(len(df_search)))  # All document indices initially
-    similarities = {}  # Dictionary to store term similarities
+    # Initialize result and similarity cache
+    current_result = None  # Start with undefined result
+    similarities = {}  # Cache for term similarities
 
     for i in range(0, len(terms), 2):
         term = terms[i]
-        operator = terms[i - 1] if i > 0 else "AND"
+        operator = terms[i - 1] if i > 0 else None
 
         # Compute similarities for the term
         term_tfidf = vectorizer_search.transform([term])
@@ -124,7 +124,7 @@ def boolean_search(query, top_k=5):
 
         # Cache similarities
         similarities[term] = term_similarities
-        matching_indices = set(term_similarities.argsort()[::-1][:top_k])
+        matching_indices = set(term_similarities.nonzero()[0])  # All indices where similarity > 0
 
         # Apply Boolean operators
         if operator == "AND":
@@ -133,17 +133,23 @@ def boolean_search(query, top_k=5):
             current_result |= matching_indices
         elif operator == "NOT":
             current_result -= matching_indices
+        else:  # First term
+            current_result = matching_indices
 
-    # Filter and sort final results by similarity scores
+    if not current_result:
+        return []  # No matches
+
+    # Sort final results by max similarity for all matched terms
     final_indices = sorted(
         current_result,
-        key=lambda idx: max(similarities[term][idx] for term in similarities),
+        key=lambda idx: max(similarities[term][idx] for term in terms[::2]),
         reverse=True
     )
 
     # Retrieve top results
     top_ids = df_search.iloc[final_indices[:top_k]]['imdb_id'].tolist()
     return top_ids
+
 
 
 # Function to retrieve movie details by IDs
