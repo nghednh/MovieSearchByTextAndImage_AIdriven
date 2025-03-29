@@ -24,16 +24,26 @@ def fetch_movie_data_by_id(movie_id):
 # Function to store movie data into MongoDB
 def store_movie_data(movie_data):
     try:
-        movie_collection.update_one(
+        # Debug print for the data being stored
+        print(f"Storing data for movie: {movie_data['title']} (TMDb ID: {movie_data['tmdb_id']})")
+        # Insert or update movie data in MongoDB
+        result = movie_collection.update_one(
             {'tmdb_id': movie_data['tmdb_id']},
             {'$set': movie_data},
             upsert=True
         )
+
+        # Check if the movie data was successfully inserted/updated
+        if result.matched_count > 0:
+            print(f"Successfully updated movie: {movie_data['title']} (TMDb ID: {movie_data['tmdb_id']})")
+        else:
+            print(f"Successfully inserted new movie: {movie_data['title']} (TMDb ID: {movie_data['tmdb_id']})")
+
     except Exception as e:
         print(f"Error storing movie ID {movie_data['tmdb_id']} into MongoDB: {e}")
 
 
-# Function to fetch and store movies until 10 valid movies are found
+# Function to fetch and store movies until valid movie count reaches the target
 def fetch_and_store_movies_in_batches(start_id, valid_movie_count_target=10, batch_size=50):
     valid_movie_count = 0  # Counter for valid movies
     movie_id = start_id  # Start from the given ID
@@ -73,10 +83,12 @@ def fetch_and_store_movies_in_batches(start_id, valid_movie_count_target=10, bat
                 store_movie_data(movie_set_data)
 
                 # Print the stored data
-                print(movie_set_data)
+                print(f"Stored data for movie: {movie_set_data['title']}")
 
                 # Increment valid movie count
                 valid_movie_count += 1
+            else:
+                print(f"Missing required fields for movie ID {movie_id}, skipping...")
 
         else:
             print(f"No data found for movie ID: {movie_id}")
@@ -97,6 +109,7 @@ def fetch_and_store_movies_in_batches(start_id, valid_movie_count_target=10, bat
 # Example usage: Fetch and store 10 valid movies starting from ID 1
 fetch_and_store_movies_in_batches(1, valid_movie_count_target=10)
 
-# Print the first 10 documents in the 'movies' collection
+# Print the first 10 documents in the 'movies' collection to verify the data
+print("Movies in MongoDB:")
 for movie in movie_collection.find().limit(10):
     print(movie)

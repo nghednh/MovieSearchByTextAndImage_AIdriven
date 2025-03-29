@@ -102,5 +102,5 @@ def movie_search_by_description(query):
 
 
 # Example usage: searching for a movie by its description
-query = "A man who can enter people's dreams and steal their secrets"
+query = "comedic crime caper"
 movie_search_by_description(query)
